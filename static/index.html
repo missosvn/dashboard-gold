@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gold Daily Analysis</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--border:#27344a;--muted:#9aa9bf;--gold:#f2c14e;--green:#35d07f;--red:#ff6877}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#f6f8fc;font:15px Inter,system-ui,sans-serif}
+main{max-width:1400px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:end;gap:18px;margin-bottom:22px}
+.eyebrow{color:var(--gold);letter-spacing:.17em;text-transform:uppercase;font-size:12px;font-weight:800}h1{margin:6px 0;font-size:32px}
+.controls{display:flex;gap:8px;flex-wrap:wrap}select,button{background:var(--panel);color:inherit;border:1px solid var(--border);border-radius:9px;padding:10px}
+button{cursor:pointer}.cards{display:grid;grid-template-columns:1.5fr repeat(3,1fr);gap:14px;margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:15px;padding:18px;min-width:0}
+.label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}.price{font-size:38px;font-weight:800;margin:8px 0}
+.metric{font-size:26px;font-weight:750;margin:8px 0}.muted{color:var(--muted);font-size:12px}.up{color:var(--green)}.down{color:var(--red)}
+.layout{display:grid;grid-template-columns:2fr 1fr;gap:14px}.chart{height:410px;margin-top:14px}.side{display:grid;gap:14px;align-content:start}
+.levels{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.level{background:#0d1424;border:1px solid var(--border);border-radius:10px;padding:12px}
+.level strong{display:block;font-size:18px;margin-top:5px}.readout{line-height:1.7;color:#d8e1ee;margin-top:10px}
+footer{color:var(--muted);font-size:12px;margin-top:18px;line-height:1.6}
+@media(max-width:900px){.cards{grid-template-columns:1fr 1fr}.layout{grid-template-columns:1fr}.top{align-items:start;flex-direction:column}}
+@media(max-width:560px){main{padding:14px}.cards{grid-template-columns:1fr}.price{font-size:32px}.chart{height:300px}}
+</style></head>
+<body><main>
+<header class="top"><div><div class="eyebrow">Market Intelligence</div><h1>Gold Daily Analysis</h1><div class="muted" id="date">Loading market data…</div></div>
+<div class="controls"><select id="ticker"><option value="GC=F">Gold Futures · GC=F</option><option value="GLD">SPDR Gold Shares · GLD</option></select><select id="period"><option value="1y">1 year</option><option value="2y">2 years</option><option value="5y">5 years</option></select><button onclick="loadData()">Refresh</button></div></header>
+<section class="cards">
+<div class="card"><div class="label">Gold price · USD</div><div class="price" id="price">—</div><div id="change">—</div><div class="metric" id="trend">—</div></div>
+<div class="card"><div class="label">RSI (14)</div><div class="metric" id="rsi">—</div><div class="muted" id="rsiText">Momentum</div></div>
+<div class="card"><div class="label">MACD</div><div class="metric" id="macd">—</div><div class="muted" id="macdText">Signal comparison</div></div>
+<div class="card"><div class="label">ATR (14)</div><div class="metric" id="atr">—</div><div class="muted">Average true range · USD</div></div>
+</section>
+<section class="layout"><div class="card"><div class="label">Price & moving averages</div><div class="chart"><canvas id="chart"></canvas></div></div>
+<div class="side">
+<div class="card"><div class="label">Support / resistance · 20 sessions</div><div class="levels"><div class="level"><div class="label">Support</div><strong id="support">—</strong></div><div class="level"><div class="label">Resistance</div><strong id="resistance">—</strong></div></div></div>
+<div class="card"><div class="label">Moving averages</div><div class="levels"><div class="level"><div class="label">MA20</div><strong id="ma20">—</strong></div><div class="level"><div class="label">MA50</div><strong id="ma50">—</strong></div><div class="level"><div class="label">MA200</div><strong id="ma200">—</strong></div></div></div>
+<div class="card"><div class="label">Technical readout</div><div id="readout" class="readout">Loading…</div></div>
+</div></section>
+<footer>Source: Yahoo Finance daily data. Indicators are computed automatically and may lag or contain data-provider errors. This dashboard is informational, not investment advice.</footer>
+</main>
+<script>
+let chart;
+const fmt=n=>Number(n).toLocaleString(undefined,{maximumFractionDigits:2});
+function rsiLabel(n){return n>=70?"Overbought":n<=30?"Oversold":n>=60?"Bullish momentum":n<=40?"Weak momentum":"Neutral"}
+async function loadData(){
+ const readout=document.getElementById("readout");readout.textContent="Loading market data…";
+ try{
+  const ticker=document.getElementById("ticker").value,period=document.getElementById("period").value;
+  const response=await fetch("/api/gold?ticker="+encodeURIComponent(ticker)+"&period="+period);
+  if(!response.ok)throw new Error(await response.text());const d=await response.json();
+  document.getElementById("date").textContent="Data as of "+d.as_of+" · "+d.ticker;
+  document.getElementById("price").textContent="$"+fmt(d.close);
+  const ch=document.getElementById("change");ch.textContent=(d.change_pct>=0?"+":"")+d.change_pct.toFixed(2)+"% daily";ch.className=d.change_pct>=0?"up":"down";
+  const trend=document.getElementById("trend");trend.textContent=d.trend;trend.className="metric "+(d.trend.includes("TĂNG")?"up":d.trend.includes("GIẢM")?"down":"");
+  document.getElementById("rsi").textContent=d.rsi.toFixed(2);document.getElementById("rsiText").textContent=rsiLabel(d.rsi);
+  document.getElementById("macd").textContent=fmt(d.macd);document.getElementById("macdText").textContent=d.macd>d.macd_signal?"Above signal line":"Below signal line";
+  document.getElementById("atr").textContent="$"+fmt(d.atr);["support","resistance","ma20","ma50","ma200"].forEach(k=>document.getElementById(k).textContent="$"+fmt(d[k]));
+  let notes=[];if(d.close>d.ma20&&d.ma20>d.ma50&&d.ma50>d.ma200)notes.push("Price and moving averages are aligned upward.");else if(d.close<d.ma20&&d.ma20<d.ma50&&d.ma50<d.ma200)notes.push("Price and moving averages are aligned downward.");else notes.push("Moving-average structure is mixed.");
+  notes.push("RSI: "+rsiLabel(d.rsi)+".");notes.push(d.macd>d.macd_signal?"MACD is above its signal line.":"MACD is below its signal line.");notes.push("20-session reference range: $"+fmt(d.support)+" – $"+fmt(d.resistance)+".");readout.textContent=notes.join(" ");
+  if(chart)chart.destroy();chart=new Chart(document.getElementById("chart"),{type:"line",data:{labels:d.history.map(x=>x.date),datasets:[
+   {label:"Gold",data:d.history.map(x=>x.close),borderWidth:2,pointRadius:0,tension:.15},
+   {label:"MA20",data:d.history.map(x=>x.sma20),borderWidth:1.3,pointRadius:0},
+   {label:"MA50",data:d.history.map(x=>x.sma50),borderWidth:1.3,pointRadius:0},
+   {label:"MA200",data:d.history.map(x=>x.sma200),borderWidth:1.3,pointRadius:0}]},
+   options:{responsive:true,maintainAspectRatio:false,interaction:{mode:"index",intersect:false},plugins:{legend:{labels:{color:"#cbd5e1"}}},scales:{x:{ticks:{color:"#9aa9bf",maxTicksLimit:8},grid:{color:"rgba(148,163,184,.08)"}},y:{ticks:{color:"#9aa9bf"},grid:{color:"rgba(148,163,184,.08)"}}}}});
+ }catch(e){readout.textContent="Could not load data: "+e.message}
+}
+loadData();
+</script></body></html>
